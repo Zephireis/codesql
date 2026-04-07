@@ -1,0 +1,96 @@
+
+
+-- This requires creating a function  that will be a IF ELSE statement and takes a rental_count INT 
+--column parameter that returns a a VARCHAR changes it to either low, medium or high.
+-- has to pass data to the rental_count parameter when called
+CREATE OR REPLACE FUNCTION categorize_popularity(rental_count INT)
+RETURNS VARCHAR(10) AS $$
+BEGIN
+    IF rental_count <= 100 THEN
+        RETURN 'Low';
+    ELSIF rental_count BETWEEN 101 AND 300 THEN
+        RETURN 'Medium';
+    ELSE
+        RETURN 'High';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+--Creating both tables needed detailed and the summary table
+CREATE TABLE detailed_table (
+    rental_id INT PRIMARY KEY,
+    rental_month INT,
+    video_title VARCHAR(100),
+    video_category VARCHAR(25)
+);
+
+
+CREATE TABLE summary_table (
+    video_category VARCHAR(25),
+    rental_month INT,
+    rental_count INT DEFAULT 0,
+    PRIMARY KEY (video_category, rental_month)
+);
+
+--selecting data from the rental table then inserting it into detailed table and joining it based on matching id's
+--from rental id and inventory id and film_id and catageory field_id and film_catagory id and category_id
+INSERT INTO detailed_table (rental_id, rental_month, video_title, video_category)
+SELECT
+    rental.rental_id,
+    EXTRACT(MONTH FROM rental.rental_date) AS rental_month,
+    film.title,
+    category.name
+FROM rental
+----making one large table based on id’s then the required data is inserted into detailed_table 
+--which is how the join works makes a temporary table in memory
+JOIN inventory ON rental.inventory_id = inventory.inventory_id
+JOIN film ON inventory.film_id = film.film_id
+JOIN film_category ON film.film_id = film_category.film_id
+JOIN category ON film_category.category_id = category.category_id;
+
+--Inserting data into the summary_table and using aggregating function to count the rentals from
+--detailed_table and grounding the data by video catagory and month
+INSERT INTO summary_table (video_category, rental_month, rental_count)
+SELECT video_category, rental_month, COUNT(*)
+FROM detailed_table
+GROUP BY video_category, rental_month;
+
+--Created a function that is triggered on inserts 
+CREATE OR REPLACE FUNCTION update_summary_table()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Checking if data already exists in summary_table for this video_category and 
+    IF EXISTS (
+        SELECT 1 FROM summary_table
+        WHERE video_category = NEW.video_category
+          AND rental_month = NEW.rental_month
+    ) THEN
+	-- If it exists, increment rental_count
+        UPDATE summary_table
+        SET rental_count = rental_count + 1
+        WHERE video_category = NEW.video_category
+          AND rental_month = NEW.rental_month;
+    ELSE
+	-- If it does not exist, insert a new row with rental_count starting at 1
+        INSERT INTO summary_table(video_category, rental_month, rental_count)
+        VALUES (NEW.video_category, NEW.rental_month, 1);
+    END IF;
+    -- Return the new row that was inserted into detailed_table
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+--Its just calling the function when triggered after the insert on the detailed table. 
+CREATE TRIGGER trigger_update_summary
+AFTER INSERT ON detailed_table
+FOR EACH ROW
+EXECUTE FUNCTION update_summary_table();
+
+--To see what the new data looks like. 
+SELECT 
+    video_category,
+    rental_month,
+    rental_count,
+    categorize_popularity(rental_count)
+FROM summary_table
+ORDER BY rental_month, video_category;
