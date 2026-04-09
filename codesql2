@@ -116,14 +116,14 @@ BEGIN
     JOIN film_category ON film.film_id = film_category.film_id
     JOIN category ON film_category.category_id = category.category_id;
 
-    INSERT INTO summary_table (video_category, rental_month, rental_count, popularity_rating) 
+    INSERT INTO summary_table (video_category, rental_month, rental_count, popularity_rating)
     SELECT 
         video_category, 
         rental_month, 
-        COUNT(*), 
-        -- Using your preferred shorthand FROM detailed_table
-        categorize_popularity(COUNT(*)::INT) 
-    FROM detailed_table 
+        COUNT(*),
+        categorize_popularity(COUNT(*)::INT)
+    FROM detailed_table
     GROUP BY video_category, rental_month;
+
 END;
 $$;
