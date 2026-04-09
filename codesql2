@@ -115,16 +115,11 @@ BEGIN
     JOIN film ON inventory.film_id = film.film_id
     JOIN film_category ON film.film_id = film_category.film_id
     JOIN category ON film_category.category_id = category.category_id;
-
-    INSERT INTO summary_table (video_category, rental_month, rental_count, popularity_rating)
-    SELECT 
-        video_category, 
-        rental_month, 
-        COUNT(*),
-        categorize_popularity(COUNT(*)::INT)
-    FROM detailed_table
-    GROUP BY video_category, rental_month;
-
 END;
 $$;
-$$;
+
+CALL fresh_rental_tables();
+
+SELECT * 
+FROM summary_table 
+ORDER BY rental_month ASC, video_category ASC;
