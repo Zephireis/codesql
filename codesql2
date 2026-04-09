@@ -6,9 +6,9 @@
 CREATE OR REPLACE FUNCTION categorize_popularity(rental_count INT)
 RETURNS VARCHAR AS $$
 BEGIN
-    IF rental_count <= 5 THEN
+    IF rental_count <= 100 THEN
         RETURN 'Low';
-    ELSIF rental_count BETWEEN 6 AND 15 THEN
+    ELSIF rental_count BETWEEN 101 AND 250 THEN
         RETURN 'Medium';
     ELSE
         RETURN 'High';
@@ -17,9 +17,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 
--- C. TABLE CREATION
-
-
+--Creating needed tables for data insertion and extraction
 CREATE TABLE detailed_table(
     rental_id int PRIMARY KEY,
     rental_month INT,
@@ -36,9 +34,7 @@ CREATE TABLE summary_table(
 );
 
 
--- D. INITIAL DATA EXTRACTION
-
-
+-- inserting data and joining tables to make one large table in memory
 INSERT INTO detailed_table (rental_id, rental_month, video_title, video_category)
 SELECT
     rental.rental_id,
@@ -54,9 +50,7 @@ JOIN film_category ON film.film_id = film_category.film_id
 JOIN category ON film_category.category_id = category.category_id;
 
 
--- E. TRIGGER FUNCTION AND TRIGGER
-
-
+--Creating function for the trigger
 CREATE OR REPLACE FUNCTION update_summary_table()
 RETURNS TRIGGER
 LANGUAGE PLPGSQL AS $$
@@ -88,7 +82,8 @@ BEGIN
     RETURN NEW;
 END; $$;
 
-CREATE TRIGGER tigger_update_summary
+--Creating Trigger (works by after data is inserted in detailed_table it runs the function trigger_update_summary
+CREATE TRIGGER trigger_update_summary
 AFTER INSERT ON detailed_table
 FOR EACH ROW
 EXECUTE FUNCTION update_summary_table();
@@ -96,7 +91,8 @@ EXECUTE FUNCTION update_summary_table();
 
 -- F. MAINTENANCE STORED PROCEDURE
 
-
+--deleting the data in both detailed and summary table then using the join from D to repopulate table
+-- This procedure can be called from a scheduled job in pgAdmin4
 CREATE OR REPLACE PROCEDURE fresh_rental_tables()
 LANGUAGE plpgsql
 AS $$
@@ -118,6 +114,7 @@ BEGIN
 END;
 $$;
 
+--Calling procedure then displaying data
 CALL fresh_rental_tables();
 
 SELECT * 
